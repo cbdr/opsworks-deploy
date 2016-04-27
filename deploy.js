@@ -20,9 +20,26 @@
     under the License.
  */
 var Deploy = {
-    run: function(options, callback) {
+    _configureAWS: function(options) {
         var AWS = require('aws-sdk');
-        AWS.config.region = options.region || 'us-east-1';
+
+        if (options.accessKeyId) {
+            var awsConfig = {
+                accessKeyId: options.accessKeyId,
+                secretAccessKey: options.secretAccessKey,
+                region: options.region || 'us-east-1'
+            };
+            AWS.config.update(awsConfig);
+        }
+        else {
+            AWS.config.region = options.region || 'us-east-1';            
+        }
+
+        return AWS;
+    },
+
+    run: function(options, callback) {
+        var AWS = this._configureAWS(options);
         var opsWorks = new AWS.OpsWorks();
         var AppService = require('./lib/app_service')(opsWorks);
         var DeploymentService = require('./lib/deployment_service')(opsWorks);
