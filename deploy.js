@@ -19,30 +19,48 @@
     specific language governing permissions and limitations
     under the License.
  */
+var Deploy = {
+    run: function(options, callback) {
+        var AWS = require('aws-sdk');
+        AWS.config.region = options.region || 'us-east-1';
+        var opsWorks = new AWS.OpsWorks();
+        var AppService = require('./lib/app_service')(opsWorks);
+        var DeploymentService = require('./lib/deployment_service')(opsWorks);
 
+        var appService = new AppService(options.revision);
+        var deploymentService = new DeploymentService(options.stackId, options.layerId, options.appId, options.rolling);
 
-var argv = require('minimist')(process.argv.slice(2));
-var AWS = require('aws-sdk');
-AWS.config.region = argv.region || 'us-east-1';
+        appService.updateApp(options.appId, function updateAppResponse() {
+            deploymentService.deploy(function deployResponse(status) {
+                callback(null, {
+                    status: status
+                });
+            });
+        });
+    }
+};
+module.exports = Deploy;
 
-var opsWorks = new AWS.OpsWorks();
-var AppService = require('./lib/app_service')(opsWorks);
-var DeploymentService = require('./lib/deployment_service')(opsWorks);
+// Command-line
+if (!module.parent) {
+    var argv = require('minimist')(process.argv.slice(2));
+    var options = {
+        region: argv.region,
+        stackId: argv.stack || process.env.AWS_StackId,
+        layerId: argv.layer || process.env.AWS_LayerId,
+        appId: argv.app || process.env.AWS_AppId,
+        revision: argv.revision,
+        rolling: argv.rolling
+    };
 
-
-//OpsWorks Parameters for deployment
-var stackId = argv.stack || process.env.AWS_StackId;
-var layerId = argv.layer || process.env.AWS_LayerId;
-var appId = argv.app || process.env.AWS_AppId;
-var revision = argv.revision;
-
-var rollingDeployment = argv.rolling;
-
-var appService = new AppService(revision);
-var deploymentService = new DeploymentService(stackId, layerId, appId, rollingDeployment);
-
-appService.updateApp(appId, function updateAppResponse() {
-    deploymentService.deploy(function deployResponse(status) {
-        console.log('Full Deployment complete!  Result: ' + status);
+    Deploy.run(options, function(err, result) {
+        if (err) {
+            console.error(err.stack);
+            process.exit(1);
+        }
+        else {
+            console.log('Full Deployment complete!  Result: ' + result.status);
+            process.exit(0);
+        }
     });
-});
+}
